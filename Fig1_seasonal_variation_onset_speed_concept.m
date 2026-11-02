@@ -2,12 +2,17 @@
 
 clear; clc; close all;
 %% ======================= 1. Style settings ===============================
+nModels = 3;
+nRegions = 4;
+nPentads = 46;
+idxMean = nModels + 1;
+idxStd  = nModels + 2;
+
 fontName = 'Arial';
 fsTick   = 6;
 fsLabel  = 8.0;
 fsNote   = 8;
 fsPanel  = 8;
-
 colorRate = [0.0000, 0.4470, 0.7410]; % onset rate: blue
 colorTime = [0.8500, 0.3250, 0.0980]; % onset time: orange
 colorGrey = [0.45, 0.45, 0.45];
@@ -102,6 +107,7 @@ colorGrey = [0.45, 0.45, 0.45];
 %     end
 % end
 
+
 %% ======================= 4. Figure =======================================
 fig = figure('Color', 'w', 'Units', 'centimeters', ...
     'Position', [2, 2, 12, 18], 'Renderer', 'painters');
@@ -112,8 +118,106 @@ layout = tiledlayout(fig, 3, 2, ...
 
 % ---- Panel a: conceptual definition of drought-onset speed ---------------
 axConcept = nexttile(layout, 1, [1 2]);
-drawOnsetConcept(axConcept, colorRate, colorTime, colorGrey, ...
-    fontName, fsTick, fsLabel, fsNote, fsPanel);
+ax = axConcept;
+hold(ax, 'on');
+xlim(ax, [0 74]);
+ylim(ax, [0 78]);
+
+eventFill = [0.82, 0.88, 0.94];
+intenseFill = [0.99, 0.91, 0.78];
+
+tNode = [0 7 14 19 26 34 42 50 58 66 74];
+pNode = [50 49 46 43 31 19 11 15 25 41 47];
+t = linspace(0, 74, 800);
+p = interp1(tNode, pNode, t, 'pchip');
+
+i40Down = find(p(1:end-1) >= 40 & p(2:end) < 40, 1, 'first');
+i20Down = find(p(1:end-1) >= 20 & p(2:end) < 20, 1, 'first');
+i40UpAll = find(p(1:end-1) < 40 & p(2:end) >= 40);
+i40Up = i40UpAll(find(i40UpAll > i20Down, 1, 'first'));
+
+t40 = interp1(p(i40Down:i40Down+1), t(i40Down:i40Down+1), 40);
+t20 = interp1(p(i20Down:i20Down+1), t(i20Down:i20Down+1), 20);
+tEnd = interp1(p(i40Up:i40Up+1), t(i40Up:i40Up+1), 40);
+
+patch(ax, [t40 tEnd tEnd t40], [0 0 40 40], eventFill, ...
+    'EdgeColor', 'none', 'FaceAlpha', 0.48);
+patch(ax, [t20 tEnd tEnd t20], [0 0 20 20], intenseFill, ...
+    'EdgeColor', 'none', 'FaceAlpha', 0.62);
+
+% Threshold lines are retained without explanatory grey labels.
+yline(ax, 40, '--', 'Color', colorGrey, 'LineWidth', 1.0);
+yline(ax, 20, '--', 'Color', colorGrey, 'LineWidth', 1.0);
+
+plot(ax, t, p, '-', 'Color', colorRate, 'LineWidth', 2.2);
+onsetMask = t >= t40 & t <= t20;
+plot(ax, t(onsetMask), p(onsetMask), '-', ...
+    'Color', colorTime, 'LineWidth', 4.0);
+
+plot(ax, t40, 40, 'o', 'MarkerSize', 5.5, 'MarkerFaceColor', 'w', ...
+    'MarkerEdgeColor', colorTime, 'LineWidth', 1.4);
+plot(ax, t20, 20, 'o', 'MarkerSize', 5.5, 'MarkerFaceColor', 'w', ...
+    'MarkerEdgeColor', colorTime, 'LineWidth', 1.4);
+
+plot(ax, [t40 t40], [5 40], ':', 'Color', colorTime, 'LineWidth', 1.0);
+plot(ax, [t20 t20], [5 20], ':', 'Color', colorTime, 'LineWidth', 1.0);
+
+yArrow = 6.5;
+quiver(ax, t40, yArrow, t20 - t40, 0, 0, 'Color', colorTime, ...
+    'LineWidth', 1.3, 'MaxHeadSize', 0.35);
+quiver(ax, t20, yArrow, t40 - t20, 0, 0, 'Color', colorTime, ...
+    'LineWidth', 1.3, 'MaxHeadSize', 0.35);
+text(ax, mean([t40 t20]), yArrow + 2.2, 'Onset time = t_{20} - t_{40}', ...
+    'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
+    'FontName', fontName, 'FontSize', fsNote, 'FontWeight', 'bold', ...
+    'Color', colorTime, 'Interpreter', 'tex');
+
+tMid = mean([t40 t20]);
+pMid = interp1(t, p, tMid);
+text(ax, 39.5, 48.0, {'Onset rate (mean decline)', ...
+    '= (P_{40} - P_{20}) / (t_{20} - t_{40})', ...
+    'Higher rate = faster onset'}, ...
+    'FontName', fontName, 'FontSize', fsNote, 'Color', colorTime, ...
+    'Interpreter', 'tex', 'HorizontalAlignment', 'left', ...
+    'VerticalAlignment', 'middle');
+quiver(ax, 39.0, 53.5, tMid - 39.0, pMid - 53.5, 0, ...
+    'Color', colorTime, 'LineWidth', 1.1, 'MaxHeadSize', 0.35);
+
+text(ax, t40, 43.7, 't_{40}', 'FontName', fontName, ...
+    'FontSize', fsNote, 'Color', colorTime, ...
+    'HorizontalAlignment', 'center', 'Interpreter', 'tex');
+text(ax, t20, 23.7, 't_{20}', 'FontName', fontName, ...
+    'FontSize', fsNote, 'Color', colorTime, ...
+    'HorizontalAlignment', 'center', 'Interpreter', 'tex');
+
+% Compact in-panel legend.
+plot(ax, [51 55], [72 72], '-', 'Color', colorRate, 'LineWidth', 2.2);
+text(ax, 56, 72, 'SM percentile', 'FontName', fontName, ...
+    'FontSize', fsNote, 'VerticalAlignment', 'middle', 'Color', colorRate);
+plot(ax, [51 55], [67 67], '-', 'Color', colorTime, 'LineWidth', 4.0);
+text(ax, 56, 67, 'Onset phase', 'FontName', fontName, ...
+    'FontSize', fsNote, 'VerticalAlignment', 'middle', 'Color', colorTime);
+
+xlabel(ax, 'Time (days)', 'FontName', fontName, 'FontSize', fsLabel);
+ylabel(ax, 'Soil-moisture percentile', ...
+    'FontName', fontName, 'FontSize', fsLabel);
+set(ax, 'FontName', fontName, 'FontSize', fsTick, 'LineWidth', 0.8, ...
+    'TickDir', 'out', 'Box', 'on', 'Layer', 'top', ...
+    'XColor', [0.15 0.15 0.15], 'YColor', [0.15 0.15 0.15]);
+yticks(ax, [0 20 40 60]);
+xticks(ax, 0:10:70);
+
+text(ax, -0.020, 1.020, 'a', 'Units', 'normalized', ...
+    'FontName', fontName, 'FontSize', fsPanel, 'FontWeight', 'bold', ...
+    'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom', ...
+    'Clipping', 'off', 'Color', [0.05 0.05 0.05]);
+text(ax, 0.012, 1.020, 'Schematic diagram', ...
+    'Units', 'normalized', 'FontName', fontName, 'FontSize', fsPanel, ...
+    'FontWeight', 'normal', 'HorizontalAlignment', 'left', ...
+    'VerticalAlignment', 'bottom', 'Clipping', 'off', ...
+    'Color', [0.05 0.05 0.05]);
+
+hold(ax, 'off');
 
 % ---- Panels b-e: regional seasonal variations ----------------------------
 xAxis = 1:nPentads;
@@ -223,112 +327,7 @@ end
 
 %% ======================= 5. Export =======================================
 %% ---------------------------
-% 导出图片
-% ---------------------------
-output_file = 'E:\100.doctoral\34.timing_on_rate\figure\F1_seasonal_variation_onset_speed_concept.png';
-print(output_file, fig, '-r600', '-dpng');
-
-%% ======================= Local function ==================================
-function drawOnsetConcept(ax, colorCurve, colorOnset, colorGrey, ...
-    fontName, fsTick, fsLabel, fsNote, fsPanel)
-% Draw a compact conceptual definition without implying observed values.
-
-hold(ax, 'on');
-xlim(ax, [0 74]);
-ylim(ax, [0 78]);
-
-eventFill = [0.82, 0.88, 0.94];
-intenseFill = [0.99, 0.91, 0.78];
-
-tNode = [0 7 14 19 26 34 42 50 58 66 74];
-pNode = [50 49 46 43 31 19 11 15 25 41 47];
-t = linspace(0, 74, 800);
-p = interp1(tNode, pNode, t, 'pchip');
-
-i40Down = find(p(1:end-1) >= 40 & p(2:end) < 40, 1, 'first');
-i20Down = find(p(1:end-1) >= 20 & p(2:end) < 20, 1, 'first');
-i40UpAll = find(p(1:end-1) < 40 & p(2:end) >= 40);
-i40Up = i40UpAll(find(i40UpAll > i20Down, 1, 'first'));
-
-t40 = interp1(p(i40Down:i40Down+1), t(i40Down:i40Down+1), 40);
-t20 = interp1(p(i20Down:i20Down+1), t(i20Down:i20Down+1), 20);
-tEnd = interp1(p(i40Up:i40Up+1), t(i40Up:i40Up+1), 40);
-
-patch(ax, [t40 tEnd tEnd t40], [0 0 40 40], eventFill, ...
-    'EdgeColor', 'none', 'FaceAlpha', 0.48);
-patch(ax, [t20 tEnd tEnd t20], [0 0 20 20], intenseFill, ...
-    'EdgeColor', 'none', 'FaceAlpha', 0.62);
-
-% Threshold lines are retained without explanatory grey labels.
-yline(ax, 40, '--', 'Color', colorGrey, 'LineWidth', 1.0);
-yline(ax, 20, '--', 'Color', colorGrey, 'LineWidth', 1.0);
-
-plot(ax, t, p, '-', 'Color', colorCurve, 'LineWidth', 2.2);
-onsetMask = t >= t40 & t <= t20;
-plot(ax, t(onsetMask), p(onsetMask), '-', ...
-    'Color', colorOnset, 'LineWidth', 4.0);
-
-plot(ax, t40, 40, 'o', 'MarkerSize', 5.5, 'MarkerFaceColor', 'w', ...
-    'MarkerEdgeColor', colorOnset, 'LineWidth', 1.4);
-plot(ax, t20, 20, 'o', 'MarkerSize', 5.5, 'MarkerFaceColor', 'w', ...
-    'MarkerEdgeColor', colorOnset, 'LineWidth', 1.4);
-
-plot(ax, [t40 t40], [5 40], ':', 'Color', colorOnset, 'LineWidth', 1.0);
-plot(ax, [t20 t20], [5 20], ':', 'Color', colorOnset, 'LineWidth', 1.0);
-
-yArrow = 6.5;
-quiver(ax, t40, yArrow, t20 - t40, 0, 0, 'Color', colorOnset, ...
-    'LineWidth', 1.3, 'MaxHeadSize', 0.35);
-quiver(ax, t20, yArrow, t40 - t20, 0, 0, 'Color', colorOnset, ...
-    'LineWidth', 1.3, 'MaxHeadSize', 0.35);
-text(ax, mean([t40 t20]), yArrow + 2.2, 'Onset time = t_{20} - t_{40}', ...
-    'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
-    'FontName', fontName, 'FontSize', fsNote, 'FontWeight', 'bold', ...
-    'Color', colorOnset, 'Interpreter', 'tex');
-
-tMid = mean([t40 t20]);
-pMid = interp1(t, p, tMid);
-text(ax, 39.5, 48.0, {'Onset rate (mean decline)', ...
-    '= (P_{40} - P_{20}) / (t_{20} - t_{40})', ...
-    'Higher rate = faster onset'}, ...
-    'FontName', fontName, 'FontSize', fsNote, 'Color', colorOnset, ...
-    'Interpreter', 'tex', 'HorizontalAlignment', 'left', ...
-    'VerticalAlignment', 'middle');
-quiver(ax, 39.0, 53.5, tMid - 39.0, pMid - 53.5, 0, ...
-    'Color', colorOnset, 'LineWidth', 1.1, 'MaxHeadSize', 0.35);
-text(ax, t40, 43.7, 't_{40}', 'FontName', fontName, ...
-    'FontSize', fsNote, 'Color', colorOnset, ...
-    'HorizontalAlignment', 'center', 'Interpreter', 'tex');
-text(ax, t20, 23.7, 't_{20}', 'FontName', fontName, ...
-    'FontSize', fsNote, 'Color', colorOnset, ...
-    'HorizontalAlignment', 'center', 'Interpreter', 'tex');
-
-% Compact in-panel legend.
-plot(ax, [51 55], [72 72], '-', 'Color', colorCurve, 'LineWidth', 2.2);
-text(ax, 56, 72, 'SM percentile', 'FontName', fontName, ...
-    'FontSize', fsNote, 'VerticalAlignment', 'middle', 'Color', colorCurve);
-plot(ax, [51 55], [67 67], '-', 'Color', colorOnset, 'LineWidth', 4.0);
-text(ax, 56, 67, 'Onset phase', 'FontName', fontName, ...
-    'FontSize', fsNote, 'VerticalAlignment', 'middle', 'Color', colorOnset);
-
-xlabel(ax, 'Time (days)', 'FontName', fontName, 'FontSize', fsLabel);
-ylabel(ax, 'Soil-moisture percentile', ...
-    'FontName', fontName, 'FontSize', fsLabel);
-set(ax, 'FontName', fontName, 'FontSize', fsTick, 'LineWidth', 0.8, ...
-    'TickDir', 'out', 'Box', 'on', 'Layer', 'top', ...
-    'XColor', [0.15 0.15 0.15], 'YColor', [0.15 0.15 0.15]);
-yticks(ax, [0 20 40 60]);
-xticks(ax, 0:10:70);
-
-text(ax, -0.020, 1.020, 'a', 'Units', 'normalized', ...
-    'FontName', fontName, 'FontSize', fsPanel, 'FontWeight', 'bold', ...
-    'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom', ...
-    'Clipping', 'off', 'Color', [0.05 0.05 0.05]);
-text(ax, 0.012, 1.020, 'Schematic diagram', ...
-    'Units', 'normalized', 'FontName', fontName, 'FontSize', fsPanel, ...
-    'FontWeight', 'normal', 'HorizontalAlignment', 'left', ...
-    'VerticalAlignment', 'bottom', 'Clipping', 'off', ...
-    'Color', [0.05 0.05 0.05]);
-
-hold(ax, 'off');
-end
+% % 导出图片
+% % ---------------------------
+% output_file = 'E:\100.doctoral\34.timing_on_rate\figure\F1_seasonal_variation_onset_speed_concept.png';
+% print(output_file, fig, '-r600', '-dpng');
